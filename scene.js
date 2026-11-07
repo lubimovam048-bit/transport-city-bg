@@ -49,6 +49,7 @@ for (const el of document.querySelectorAll('.layer[data-x]')){
   const [x, y, w, h] = ['x', 'y', 'w', 'h'].map(k => +el.dataset[k]);
   Object.assign(el.style, {left: (x + OX) / FULL_W * 100 + '%', top: (y + OY) / FULL_H * 100 + '%',
     width: w / FULL_W * 100 + '%', height: h / FULL_H * 100 + '%'});
+  el.classList.add('placed');
 }
 /* a picture pixel → point on the ground (y = h) */
 function ground(px, py, h = 0){
