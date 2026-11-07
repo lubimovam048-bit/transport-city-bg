@@ -205,7 +205,7 @@ function makeFlyer(){
 const routes = {
   /* the bus: from behind the arch, along the far lane to the left edge,
      a U-turn there, back along the near lane and out toward the viewer */
-  shuttleA: curve([[1330,690],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1300,1200],[1500,1290],[1780,1410],[2150,1580]].map(([x,y]) => ground(x, y))),   /* out past the right edge, also with the extended road below */
+  shuttleA: curve([[1262,678],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1300,1200],[1500,1290],[1780,1410],[2150,1580]].map(([x,y]) => ground(x, y))),   /* out past the right edge, also with the extended road below */
   /* far lane: out of the tunnel, away to the left */
   shuttleB: curve([[1420,694],[1250,690],[1060,676],[820,670],[560,682],[300,708],[80,740],[-300,790]].map(([x,y]) => ground(x, y))),
   /* the monorail deck, right → left, disappearing behind the building */
