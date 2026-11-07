@@ -205,13 +205,13 @@ function makeFlyer(){
 const routes = {
   /* the bus: from behind the arch, along the far lane to the left edge,
      a U-turn there, back along the near lane and out toward the viewer */
-  shuttleA: curve([[1262,678],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1300,1200],[1500,1290],[1780,1410],[2150,1580]].map(([x,y]) => ground(x, y))),   /* out past the right edge, also with the extended road below */
+  shuttleA: curve([[1262,678],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1342,1160],[1600,1205],[1826,1240],[2112,1285],[2500,1340]].map(([x,y]) => ground(x, y))),   /* along the near lane, traced from the lane markings, out past the right edge */
   /* far lane: out of the tunnel, away to the left */
   shuttleB: curve([[1420,694],[1250,690],[1060,676],[820,670],[560,682],[300,708],[80,740],[-300,790]].map(([x,y]) => ground(x, y))),
   /* the monorail deck, right → left, disappearing behind the building */
   /* traced from the red line on the deck: left → right, out from behind the building.
      The deck recedes to the left, so points there are farther away (third number). */
-  train: curve([[200,374,125],[279,354,113],[359,336,101],[439,322,93],[519,312,88],[639,306,81],[758,305,76],[878,307,73],[998,308,70],[1118,306,68],[1237,306,66],[1357,309,64],[1437,312,62],[1850,318,52],[2350,326,46]].map(([x,y,d]) => air(x, y, d))),
+  train: curve([[150,388,133],[200,374,125],[279,354,113],[359,336,101],[439,322,93],[519,312,88],[639,306,81],[758,305,76],[878,307,73],[998,308,70],[1118,306,68],[1237,306,66],[1357,309,64],[1437,312,62],[1850,318,52],[2350,326,46],[3200,340,40]].map(([x,y,d]) => air(x, y, d))),
   /* right sidewalk, traced from the red line: in from the bottom-right between the planter
      and the lamp, left along the lower pass, a rounded C-turn, back along the upper pass and
      out to the top-right behind the flowers */
@@ -353,6 +353,7 @@ function follow(obj, c, u, {pitch = 0, level = false, reverse = false, byPoints 
 }
 
 const trainLen = routes.train.getLength();
+const TRAIN_V = 6.45, TRAIN_PAUSE = 2;   /* metres per second; seconds between trains */
 /* the flying cars' fixed course: the overall direction of the flight, level, turned mostly
    side-on to the viewer (only 30% of the toward-camera part kept) */
 const flyHeading = (() => {
@@ -389,16 +390,19 @@ function update(t){
   follow(shuttleA, routes.shuttleA, (t / 22) % 1);
   follow(shuttleB, routes.shuttleA, (t / 22 + .5) % 1);   /* same route, half a lap behind */
 
-  /* monorail: three cars, each follows the curve on its own */
-  const head = ((t / 20) % 1) * 1.15;         /* extra tail time so the last car clears the edge */
+  /* monorail: a steady 6.45 m/s along the whole deck. Both bogies stay on the line from the
+     moment the rear leaves the start (hidden behind the station) until the front reaches the far
+     end (well past the right edge), so the train never slows or blinks out while in view. */
+  const head = ((t / 20) % 1) * 1.15;         /* used by the placeholder cars only */
   if (trainReady){
-    const u = head - TRAIN_LENGTH / 2 / trainLen;   /* model origin is its middle */
-    trainBody.visible = u >= 0 && u <= 1;
+    const H = TRAIN_LENGTH * .45;              /* bogie offset from the middle, metres */
+    const runTime = (trainLen - 2 * H) / TRAIN_V;
+    const s = t % (runTime + TRAIN_PAUSE);
+    trainBody.visible = s <= runTime;
     if (trainBody.visible){
-      /* two bogies: front and rear ends both sit on the traced deck line */
-      const h = TRAIN_LENGTH * .45 / trainLen;
-      const rear = routes.train.getPointAt(Math.max(u - h, 0));
-      const front = routes.train.getPointAt(Math.min(u + h, 1));
+      const c = H + s * TRAIN_V;               /* distance of the middle along the deck */
+      const rear = routes.train.getPointAt((c - H) / trainLen);
+      const front = routes.train.getPointAt((c + H) / trainLen);
       trainBody.position.copy(rear).add(front).multiplyScalar(.5);
       trainBody.lookAt(front);
     }
