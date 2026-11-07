@@ -10,7 +10,8 @@ import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
    (1446 x 1087), so they stay glued to the drawing at any screen size.
    ------------------------------------------------------------------ */
 
-const IW = 1446, IH = 1087;
+const IW = 1446, IH = 1087;          /* the original picture: every route and layer is written in its pixels */
+const FULL_H = 1800, OY = 368;       /* the tall background (extended sky and road); the original sits OY px down */
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -29,13 +30,18 @@ camera.position.set(0, CAM.height, 0);
   const pitch = Math.atan((IH / 2 - CAM.horizonY) / (IH / 2) * t);
   camera.rotation.x = -pitch;
 }
+/* the camera is matched to the original frame; the view simply extends it by the added
+   sky above and road below, so the original area projects exactly as before */
+camera.setViewOffset(IW, IH, 0, -OY, IW, FULL_H);
 camera.updateMatrixWorld();
 
 const ray = new THREE.Raycaster();
 function rayAt(px, py){
-  ray.setFromCamera(new THREE.Vector2(px / IW * 2 - 1, -(py / IH * 2 - 1)), camera);
+  ray.setFromCamera(new THREE.Vector2(px / IW * 2 - 1, -((py + OY) / FULL_H * 2 - 1)), camera);
   return ray.ray;
 }
+/* a 3D point → original-picture pixels */
+const toPx = v => { const p = v.clone().project(camera); return [(p.x + 1) / 2 * IW, (1 - p.y) / 2 * FULL_H - OY]; };
 /* a picture pixel → point on the ground (y = h) */
 function ground(px, py, h = 0){
   const r = rayAt(px, py);
@@ -190,7 +196,7 @@ function makeFlyer(){
 const routes = {
   /* the bus: from behind the arch, along the far lane to the left edge,
      a U-turn there, back along the near lane and out toward the viewer */
-  shuttleA: curve([[1330,690],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1300,1200]].map(([x,y]) => ground(x, y))),
+  shuttleA: curve([[1330,690],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1300,1200],[1500,1290],[1780,1410]].map(([x,y]) => ground(x, y))),   /* out past the right edge, also with the extended road below */
   /* far lane: out of the tunnel, away to the left */
   shuttleB: curve([[1420,694],[1250,690],[1060,676],[820,670],[560,682],[300,708],[80,740],[-300,790]].map(([x,y]) => ground(x, y))),
   /* the monorail deck, right → left, disappearing behind the building */
@@ -290,7 +296,10 @@ swapIn([trainBody], 'assets/train.glb', TRAIN_LENGTH, {shadow: false, onReady(){
   train.forEach(c => scene.remove(c));
 }});
 
-const dronePos = air(430, 150, 22);
+/* the drone's hover spot: over the station on wide screens; on tall screens (phones) up in the
+   extended sky, clear of the big tree, so it hangs higher in the frame */
+const DRONE_WIDE = air(430, 150, 22), DRONE_TALL = air(880, -160, 22);
+let dronePos = DRONE_WIDE;
 const tmp = new THREE.Vector3();
 const flowerLayer = document.getElementById('flowerLayer');
 /* where along the robot's route the U-turn is: the leftmost point on screen */
@@ -441,7 +450,7 @@ const steam = [makeSteam(flyer), makeSteam(flyerB)];
 let lastSteamT = null;
 function stepSteam(sys, dt){
   if (sys.holder.visible){
-    sys.acc += dt * 52;                         /* puffs per second */
+    sys.acc += dt * (mobile ? 32 : 52);         /* puffs per second (fewer on phones) */
     while (sys.acc >= 1){
       sys.acc -= 1;
       const p = sys.pool[sys.next]; sys.next = (sys.next + 1) % sys.pool.length;
@@ -468,12 +477,13 @@ function stepSteam(sys, dt){
 const occluders = {
   /* the arch (assets/arch.webp) and the station building (assets/building.webp)
      are hand-cut layers placed in index.html */
-  planter:  [[0,850],[70,862],[140,948],[250,962],[330,984],[396,1014],[420,1087],[0,1087]]
+  /* the flower planter bottom-left, now continuing down into the extended foreground */
+  planter:  [[0,850],[70,862],[140,948],[250,962],[330,984],[396,1014],[425,1060],[432,1150],[420,1212],[0,1218]]
 };
 for (const [name, pts] of Object.entries(occluders)){
   const d = document.createElement('div');
   d.className = 'occ'; d.dataset.name = name;
-  d.style.clipPath = `polygon(${pts.map(([x, y]) => `${(x / IW * 100).toFixed(3)}% ${(y / IH * 100).toFixed(3)}%`).join(',')})`;
+  d.style.clipPath = `polygon(${pts.map(([x, y]) => `${(x / IW * 100).toFixed(3)}% ${((y + OY) / FULL_H * 100).toFixed(3)}%`).join(',')})`;
   stage.appendChild(d);
 }
 
@@ -481,11 +491,12 @@ for (const [name, pts] of Object.entries(occluders)){
 let dbg;
 if (DEBUG){
   dbg = document.createElement('canvas');
-  dbg.width = IW; dbg.height = IH;
+  dbg.width = IW; dbg.height = FULL_H;
   dbg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5';
   stage.appendChild(dbg);
   const g = dbg.getContext('2d');
-  const proj = v => { const p = v.clone().project(camera); return [(p.x + 1) / 2 * IW, (1 - p.y) / 2 * IH]; };
+  g.translate(0, OY);                 /* draw in original-picture pixels */
+  const proj = toPx;
   const colors = {shuttleA: '#f0f', shuttleB: '#0ff', train: '#ff0', robot: '#0f0', flyer: '#f80'};
   for (const [k, c] of Object.entries(routes)){
     g.strokeStyle = colors[k]; g.lineWidth = 2; g.beginPath();
@@ -495,6 +506,26 @@ if (DEBUG){
   g.strokeStyle = '#000'; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(0, CAM.horizonY); g.lineTo(IW, CAM.horizonY); g.stroke();
   window.__scene = {THREE, scene, camera, routes, update, ground, air};
 }
+
+/* ---------- framing: which part of the tall picture each screen shows ----------
+   The picture always covers the screen. Wide screens keep the original view centred
+   (the added sky and road are cropped away); tall screens show the full height,
+   centred a little right of the middle so the monorail, buses and arch stay in view. */
+const FOCUS_WIDE = [723, OY + 543];   /* centre of the original picture */
+const FOCUS_TALL = [800, FULL_H / 2];
+const viewportEl = stage.parentElement;
+function frameStage(){
+  const vw = viewportEl.clientWidth, vh = viewportEl.clientHeight;
+  const s = Math.max(vw / IW, vh / FULL_H), w = IW * s, h = FULL_H * s;
+  const [fx, fy] = vw < vh ? FOCUS_TALL : FOCUS_WIDE;
+  dronePos = vw < vh ? DRONE_TALL : DRONE_WIDE;
+  const clamp = (v, lo) => Math.min(0, Math.max(lo, v));
+  Object.assign(stage.style, {width: w + 'px', height: h + 'px',
+    left: clamp(vw / 2 - fx * s, vw - w) + 'px', top: clamp(vh / 2 - fy * s, vh - h) + 'px'});
+  stage.classList.add('framed');
+}
+new ResizeObserver(frameStage).observe(viewportEl);
+frameStage();
 
 /* ---------- size & loop ---------- */
 function resize(){
@@ -508,9 +539,16 @@ const T0 = performance.now();
 const tParam = params.get('t');
 /* still frame: reduced motion, or ?t=seconds for inspecting one moment */
 function drawStill(){ update(tParam !== null ? +tParam : 6); renderer.render(scene, camera); }
+/* the loop pauses while the scene is scrolled out of view (saves battery when used as a page background) */
+let onScreen = true, looping = false;
 function frame(){
+  if (!onScreen){ looping = false; return; }
   update((performance.now() - T0) / 1000 + 3);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-if (animating) requestAnimationFrame(frame); else drawStill();
+function start(){ if (!looping){ looping = true; requestAnimationFrame(frame); } }
+if (animating){
+  new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; if (onScreen) start(); }).observe(stage);
+  start();
+} else drawStill();

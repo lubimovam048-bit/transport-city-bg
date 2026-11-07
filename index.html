@@ -13,18 +13,18 @@
   html,body{height:100%}
   body{overflow:hidden;background:#cfe0f7}
 
-  /* The stage keeps the picture's own aspect ratio and covers the viewport.
-     Background, 3D layer and occluders share its coordinate space exactly. */
+  /* The stage keeps the picture's own aspect ratio (1446 x 1800) and covers the viewport.
+     Background, 3D layer and cut-out layers share its coordinate space exactly.
+     scene.js frames it per screen (which part of the picture stays in view);
+     the CSS below is only the centred fallback before the script runs. */
   .viewport{position:fixed;inset:0;overflow:hidden}
   .stage{
-    --iw:1446; --ih:1087;
-    --fx:.42;                       /* horizontal focus on narrow screens */
-    position:absolute;top:50%;
-    width:max(100vw, 100dvh * 1446 / 1087);
-    aspect-ratio:1446 / 1087;
-    left:calc((100vw - max(100vw, 100dvh * 1446 / 1087)) * var(--fx));
-    transform:translateY(-50%);
+    position:absolute;
+    width:max(100vw, 100dvh * 1446 / 1800);
+    aspect-ratio:1446 / 1800;
+    left:50%;top:50%;transform:translate(-50%,-50%);
   }
+  .stage.framed{transform:none}
   .stage > *{position:absolute;inset:0;width:100%;height:100%}
   .bg{background:url(assets/background.webp) center/100% 100% no-repeat}
   canvas.world{display:block;pointer-events:none}
@@ -40,21 +40,21 @@
   <div class="stage" id="stage">
     <div class="bg" role="img" aria-label="Город будущего: эстакада, дорога, остановка и тоннель"></div>
     <canvas class="world" id="world"></canvas>
-    <!-- the arch with its island, trees and lamp, cut out by hand: traffic passes behind it.
-         Placed in picture pixels: x 969, y 382, size 477.3 x 354.2 (of 1446 x 1087). -->
+    <!-- Cut-out layers. Positions below are in the ORIGINAL picture's pixels (1446 x 1087),
+         which sits in the tall background 368 px from the top; percentages are of 1446 x 1800. -->
+    <!-- the arch with its island, trees and lamp: traffic passes behind it. x 969, y 382, 477.3 x 354.2 -->
     <img class="layer" src="assets/arch.webp" alt="" decoding="async"
-         style="left:67.012%;top:35.143%;width:33.010%;height:32.589%">
-    <!-- the station building: the monorail runs behind it. Cut at picture y 560,
-         so the bench, bollards and stop below stay in the background and buses pass in front.
-         Placed in picture pixels: x 0, y 68, size 375.3 x 492. -->
+         style="left:67.012%;top:41.667%;width:33.010%;height:19.680%">
+    <!-- the station building: the monorail runs behind it. Cut at y 560 so the bench, bollards
+         and stop below stay in the background and buses pass in front. x 0, y 68, 375.3 x 492 -->
     <img class="layer" src="assets/building.webp" alt="" decoding="async"
-         style="left:0;top:6.256%;width:25.951%;height:45.262%">
+         style="left:0;top:24.222%;width:25.951%;height:27.333%">
     <!-- right sidewalk: the flower planter and, in front of it, the lamp; the robot passes behind both.
-         Flower: x 1369, y 726, 77 x 168. Lamp: x 1332, y 737, 45.1 x 185.3 (picture pixels). -->
+         Flower: x 1369, y 726, 77 x 168. Lamp: x 1332, y 737, 45.1 x 185.3 -->
     <img class="layer" id="flowerLayer" src="assets/flower.webp" alt="" decoding="async"
-         style="left:94.675%;top:66.789%;width:5.325%;height:15.455%">
+         style="left:94.675%;top:60.778%;width:5.325%;height:9.333%">
     <img class="layer" src="assets/lamp.webp" alt="" decoding="async"
-         style="left:92.116%;top:67.801%;width:3.118%;height:17.048%">
+         style="left:92.116%;top:61.389%;width:3.118%;height:10.295%">
 
     <!-- occluders are injected here: copies of the picture clipped to things that stand in front of traffic -->
   </div>
