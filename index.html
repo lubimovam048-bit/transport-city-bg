@@ -43,8 +43,8 @@
     <canvas class="world" id="world"></canvas>
     <!-- Cut-out layers. data-x/y/w/h are in the ORIGINAL picture's pixels (1446 x 1087);
          scene.js places them inside the extended background. -->
-    <!-- the arch with its island, trees and lamp: traffic passes behind it -->
-    <img class="layer" src="assets/arch.webp" alt="" decoding="async" data-x="969" data-y="382" data-w="477.32" data-h="354.24">
+    <!-- the arch (full length, with its second span), island, tree and lamp: traffic passes behind it -->
+    <img class="layer" src="assets/arch-wide.webp" alt="" decoding="async" data-x="971" data-y="411" data-w="848.59" data-h="325.46">
     <!-- the station building: the monorail runs behind it. Cut at y 560 so the bench, bollards
          and stop below stay in the background and buses pass in front -->
     <img class="layer" src="assets/building.webp" alt="" decoding="async" data-x="0" data-y="68" data-w="375.25" data-h="492">
@@ -66,6 +66,6 @@
   "three/addons/":"./vendor/three/examples/jsm/"
 }}
 </script>
-<script type="module" src="scene.js?v=20261107c"></script>
+<script type="module" src="scene.js?v=20261107d"></script>
 </body>
 </html>
