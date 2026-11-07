@@ -11,7 +11,9 @@ import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
    ------------------------------------------------------------------ */
 
 const IW = 1446, IH = 1087;          /* the original picture: every route and layer is written in its pixels */
-const FULL_H = 1800, OY = 368;       /* the tall background (extended sky and road); the original sits OY px down */
+/* the extended background: sky above, road below, street on both sides.
+   The original sits OX px from the left and OY px from the top of it. */
+const FULL_W = 2800, FULL_H = 1800, OX = 688, OY = 368;
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -32,16 +34,22 @@ camera.position.set(0, CAM.height, 0);
 }
 /* the camera is matched to the original frame; the view simply extends it by the added
    sky above and road below, so the original area projects exactly as before */
-camera.setViewOffset(IW, IH, 0, -OY, IW, FULL_H);
+camera.setViewOffset(IW, IH, -OX, -OY, FULL_W, FULL_H);
 camera.updateMatrixWorld();
 
 const ray = new THREE.Raycaster();
 function rayAt(px, py){
-  ray.setFromCamera(new THREE.Vector2(px / IW * 2 - 1, -((py + OY) / FULL_H * 2 - 1)), camera);
+  ray.setFromCamera(new THREE.Vector2((px + OX) / FULL_W * 2 - 1, -((py + OY) / FULL_H * 2 - 1)), camera);
   return ray.ray;
 }
 /* a 3D point → original-picture pixels */
-const toPx = v => { const p = v.clone().project(camera); return [(p.x + 1) / 2 * IW, (1 - p.y) / 2 * FULL_H - OY]; };
+const toPx = v => { const p = v.clone().project(camera); return [(p.x + 1) / 2 * FULL_W - OX, (1 - p.y) / 2 * FULL_H - OY]; };
+/* cut-out layers: place them from their original-picture pixel boxes */
+for (const el of document.querySelectorAll('.layer[data-x]')){
+  const [x, y, w, h] = ['x', 'y', 'w', 'h'].map(k => +el.dataset[k]);
+  Object.assign(el.style, {left: (x + OX) / FULL_W * 100 + '%', top: (y + OY) / FULL_H * 100 + '%',
+    width: w / FULL_W * 100 + '%', height: h / FULL_H * 100 + '%'});
+}
 /* a picture pixel → point on the ground (y = h) */
 function ground(px, py, h = 0){
   const r = rayAt(px, py);
@@ -196,27 +204,29 @@ function makeFlyer(){
 const routes = {
   /* the bus: from behind the arch, along the far lane to the left edge,
      a U-turn there, back along the near lane and out toward the viewer */
-  shuttleA: curve([[1330,690],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1300,1200],[1500,1290],[1780,1410]].map(([x,y]) => ground(x, y))),   /* out past the right edge, also with the extended road below */
+  shuttleA: curve([[1330,690],[1230,668],[1123,650],[963,660],[763,672],[433,705],[133,745],[13,785],[-32,825],[13,865],[213,905],[613,975],[903,1035],[1088,1105],[1300,1200],[1500,1290],[1780,1410],[2150,1580]].map(([x,y]) => ground(x, y))),   /* out past the right edge, also with the extended road below */
   /* far lane: out of the tunnel, away to the left */
   shuttleB: curve([[1420,694],[1250,690],[1060,676],[820,670],[560,682],[300,708],[80,740],[-300,790]].map(([x,y]) => ground(x, y))),
   /* the monorail deck, right → left, disappearing behind the building */
   /* traced from the red line on the deck: left → right, out from behind the building.
      The deck recedes to the left, so points there are farther away (third number). */
-  train: curve([[200,374,125],[279,354,113],[359,336,101],[439,322,93],[519,312,88],[639,306,81],[758,305,76],[878,307,73],[998,308,70],[1118,306,68],[1237,306,66],[1357,309,64],[1437,312,62],[1850,318,52]].map(([x,y,d]) => air(x, y, d))),
+  train: curve([[200,374,125],[279,354,113],[359,336,101],[439,322,93],[519,312,88],[639,306,81],[758,305,76],[878,307,73],[998,308,70],[1118,306,68],[1237,306,66],[1357,309,64],[1437,312,62],[1850,318,52],[2350,326,46]].map(([x,y,d]) => air(x, y, d))),
   /* right sidewalk, traced from the red line: in from the bottom-right between the planter
      and the lamp, left along the lower pass, a rounded C-turn, back along the upper pass and
      out to the top-right behind the flowers */
   robot: curve([
+    [2350,1040],[1950,995],[1700,965],                                   /* along the sidewalk from beyond the right edge */
     [1600,950],[1520,925],[1446,907],[1400,901],[1376,898],[1336,894],[1296,890],[1256,886],
     [1240,884],[1229,882],[1222,878],[1217,872],[1214,862],[1215,852],[1219,844],[1227,836],
-    [1240,833],[1256,830],[1296,824],[1336,818],[1376,812],[1400,809],[1448,800],[1530,782]
+    [1240,833],[1256,830],[1296,824],[1336,818],[1376,812],[1400,809],[1448,800],[1530,782],
+    [1800,745],[2350,690]                                                 /* away behind the bushes */
   ].map(([x,y]) => ground(x, y))),
   /* flying car: appears far over the city and sweeps past toward the viewer */
   /* flying car, traced from the red line: from behind the curved tower (far away, tiny),
      past the spire, rising and coming closer, out of frame top-right (close and big).
      Third number = distance; the towers' depth cut-out sits at 140, so the start is hidden.
      It leaves the city toward us at first, then mostly travels right and exits past the edge. */
-  flyer: curve([[640,266,320],[691,262,300],[771,248,250],[818,230,215],[850,207,190],[882,178,174],[914,154,160],[945,138,149],[977,124,140],[1009,116,131],[1057,114,122],[1104,114,115],[1152,118,108],[1200,122,103],[1247,123,98],[1295,119,94],[1343,113,90],[1390,103,87],[1438,84,84],[1650,40,76]].map(([x,y,d]) => air(x, y, d)))
+  flyer: curve([[640,266,320],[691,262,300],[771,248,250],[818,230,215],[850,207,190],[882,178,174],[914,154,160],[945,138,149],[977,124,140],[1009,116,131],[1057,114,122],[1104,114,115],[1152,118,108],[1200,122,103],[1247,123,98],[1295,119,94],[1343,113,90],[1390,103,87],[1438,84,84],[1650,40,76],[1900,0,73],[2400,-80,68]].map(([x,y,d]) => air(x, y, d)))
 };
 
 /* ---------- actors ---------- */
@@ -301,7 +311,8 @@ swapIn([trainBody], 'assets/train.glb', TRAIN_LENGTH, {shadow: false, onReady(){
 const DRONE_WIDE = air(430, 150, 22), DRONE_TALL = air(880, -160, 22);
 let dronePos = DRONE_WIDE;
 const tmp = new THREE.Vector3();
-const flowerLayer = document.getElementById('flowerLayer');
+/* planting the robot passes in front of on the way in and behind on the way out */
+const swapLayers = ['flowerLayer', 'bushLayer'].map(id => document.getElementById(id)).filter(Boolean);
 /* where along the robot's route the U-turn is: the leftmost point on screen */
 const robotTurnU = (() => {
   let best = 0, bx = Infinity;
@@ -375,14 +386,14 @@ function update(t){
     if (car.visible) follow(car, routes.train, u, {pitch: -.08});
   });
 
-  /* robot: in from behind the flowers, U-turn at the curb, out past the lamp (one loop, steady pace) */
-  const ru = (t / 18) % 1;
+  /* robot: in along the sidewalk in front of the planting, U-turn at the curb, out behind it */
+  const ru = (t / 26) % 1;
   follow(robot, routes.robot, ru, {level: true});
-  /* first pass (before the U-turn) runs in front of the planter, so the flower layer sits behind
-     the 3D layer; it comes forward only at the turn, far from the planter, so nothing pops */
-  if (flowerLayer){
+  /* first pass (before the U-turn) runs in front of the flowers and bushes, so their layers sit
+     behind the 3D layer; they come forward only at the turn, far from them, so nothing pops */
+  {
     const behind = ru < robotTurnU;
-    if (behind !== flowerLayer.classList.contains('behind')) flowerLayer.classList.toggle('behind', behind);
+    for (const el of swapLayers) if (behind !== el.classList.contains('behind')) el.classList.toggle('behind', behind);
   }
   robot.position.y += Math.abs(Math.sin(t * 9)) * .015;   /* tiny wheel bump */
 
@@ -483,7 +494,7 @@ const occluders = {
 for (const [name, pts] of Object.entries(occluders)){
   const d = document.createElement('div');
   d.className = 'occ'; d.dataset.name = name;
-  d.style.clipPath = `polygon(${pts.map(([x, y]) => `${(x / IW * 100).toFixed(3)}% ${((y + OY) / FULL_H * 100).toFixed(3)}%`).join(',')})`;
+  d.style.clipPath = `polygon(${pts.map(([x, y]) => `${((x + OX) / FULL_W * 100).toFixed(3)}% ${((y + OY) / FULL_H * 100).toFixed(3)}%`).join(',')})`;
   stage.appendChild(d);
 }
 
@@ -491,11 +502,11 @@ for (const [name, pts] of Object.entries(occluders)){
 let dbg;
 if (DEBUG){
   dbg = document.createElement('canvas');
-  dbg.width = IW; dbg.height = FULL_H;
+  dbg.width = FULL_W; dbg.height = FULL_H;
   dbg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5';
   stage.appendChild(dbg);
   const g = dbg.getContext('2d');
-  g.translate(0, OY);                 /* draw in original-picture pixels */
+  g.translate(OX, OY);                /* draw in original-picture pixels */
   const proj = toPx;
   const colors = {shuttleA: '#f0f', shuttleB: '#0ff', train: '#ff0', robot: '#0f0', flyer: '#f80'};
   for (const [k, c] of Object.entries(routes)){
@@ -511,12 +522,12 @@ if (DEBUG){
    The picture always covers the screen. Wide screens keep the original view centred
    (the added sky and road are cropped away); tall screens show the full height,
    centred a little right of the middle so the monorail, buses and arch stay in view. */
-const FOCUS_WIDE = [723, OY + 543];   /* centre of the original picture */
-const FOCUS_TALL = [800, FULL_H / 2];
+const FOCUS_WIDE = [OX + 723, OY + 543];   /* centre of the original picture */
+const FOCUS_TALL = [OX + 800, FULL_H / 2];
 const viewportEl = stage.parentElement;
 function frameStage(){
   const vw = viewportEl.clientWidth, vh = viewportEl.clientHeight;
-  const s = Math.max(vw / IW, vh / FULL_H), w = IW * s, h = FULL_H * s;
+  const s = Math.max(vw / FULL_W, vh / FULL_H), w = FULL_W * s, h = FULL_H * s;
   const [fx, fy] = vw < vh ? FOCUS_TALL : FOCUS_WIDE;
   dronePos = vw < vh ? DRONE_TALL : DRONE_WIDE;
   const clamp = (v, lo) => Math.min(0, Math.max(lo, v));
