@@ -356,11 +356,32 @@ const trainLen = routes.train.getLength();
 /* the flying cars' fixed course: the overall direction of the flight, level, turned mostly
    side-on to the viewer (only 30% of the toward-camera part kept) */
 const flyHeading = (() => {
-  const d = routes.flyer.getPoint(1).sub(routes.flyer.getPoint(.2));
+  const P = routes.flyer.points;             /* the traced stretch only, not the run-out past the edge */
+  const d = P[20].clone().sub(P[4]);
   d.addScaledVector(camFwd, -d.dot(camFwd) * .7);
   d.y = 0;
   return d.normalize();
 })();
+/* even speed on screen: re-parameterise a curve by its projected (on-screen) length, so the car
+   glides at a steady pace whatever the spacing of the traced points or the depth */
+function evenOnScreen(c, n = 600){
+  const us = [], acc = [0];
+  let prev = null;
+  for (let i = 0; i <= n; i++){
+    const u = i / n, [x, y] = toPx(c.getPoint(u));
+    if (prev) acc.push(acc[acc.length - 1] + Math.hypot(x - prev[0], y - prev[1]));
+    us.push(u); prev = [x, y];
+  }
+  const total = acc[n];
+  return s => {
+    const target = THREE.MathUtils.clamp(s, 0, 1) * total;
+    let lo = 0, hi = n;
+    while (hi - lo > 1){ const m = (lo + hi) >> 1; if (acc[m] < target) lo = m; else hi = m; }
+    const f = (target - acc[lo]) / ((acc[hi] - acc[lo]) || 1);
+    return c.getPoint(us[lo] + (us[hi] - us[lo]) * f);
+  };
+}
+const flyerAt = evenOnScreen(routes.flyer);
 const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
 
 function update(t){
@@ -415,20 +436,21 @@ function update(t){
   lastSteamT = t;
 }
 
-/* flying cars: one leaves the towers and sweeps past us out of frame (8 s),
+/* flying cars: one leaves the towers and flies out past the right edge (14 s, steady pace),
    then, after a short pause, another comes in from the right and flies back into the towers */
+const FLY_CYCLE = 30, FLY_TIME = 14, FLY_B_START = 15;
 function placeFlyers(t){
   {
-    const s = (t / 20) % 1;
-    flyer.visible = s < .4;
+    const s = t % FLY_CYCLE;
+    flyer.visible = s < FLY_TIME;
     /* position follows the traced line; the nose keeps one steady course (no yawing about) */
     if (flyer.visible){
-      flyer.position.copy(routes.flyer.getPoint(s / .4));
+      flyer.position.copy(flyerAt(s / FLY_TIME));
       flyer.lookAt(tmp.copy(flyer.position).add(flyHeading));
     }
-    flyerB.visible = s >= .5 && s < .9;
+    flyerB.visible = s >= FLY_B_START && s < FLY_B_START + FLY_TIME;
     if (flyerB.visible){
-      flyerB.position.copy(routes.flyer.getPoint(1 - (s - .5) / .4));
+      flyerB.position.copy(flyerAt(1 - (s - FLY_B_START) / FLY_TIME));
       flyerB.lookAt(tmp.copy(flyerB.position).sub(flyHeading));
     }
     /* a slow, slight hover bob, so they float rather than slide */
